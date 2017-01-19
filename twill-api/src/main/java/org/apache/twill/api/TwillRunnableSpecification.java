@@ -54,7 +54,6 @@ public interface TwillRunnableSpecification {
     }
 
     public final class AfterName {
-
       public AfterConfigs withConfigs(Map<String, String> args) {
         Builder.this.args = args;
         return new AfterConfigs();
