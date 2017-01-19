@@ -19,6 +19,7 @@ package org.apache.twill.internal;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -28,7 +29,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-
 import org.apache.twill.api.Command;
 import org.apache.twill.api.ResourceReport;
 import org.apache.twill.api.RunId;
@@ -38,7 +38,6 @@ import org.apache.twill.api.logging.LogEntry;
 import org.apache.twill.api.logging.LogHandler;
 import org.apache.twill.api.logging.LogThrowable;
 import org.apache.twill.common.Cancellable;
-import org.apache.twill.discovery.DiscoveryServiceClient;
 import org.apache.twill.discovery.ServiceDiscovered;
 import org.apache.twill.discovery.ZKDiscoveryService;
 import org.apache.twill.internal.json.LogEntryDecoder;
@@ -61,6 +60,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Future;
 
 /**
  * A abstract base class for {@link TwillController} implementation that uses Zookeeper to controller a
@@ -73,14 +73,13 @@ public abstract class AbstractTwillController extends AbstractZKServiceControlle
 
   private final Queue<LogHandler> logHandlers;
   private final KafkaClientService kafkaClient;
-  private final DiscoveryServiceClient discoveryServiceClient;
-  private volatile Cancellable logCancellable;
+  private ZKDiscoveryService discoveryServiceClient;
+  private Cancellable logCancellable;
 
   public AbstractTwillController(RunId runId, ZKClient zkClient, Iterable<LogHandler> logHandlers) {
     super(runId, zkClient);
     this.logHandlers = new ConcurrentLinkedQueue<>();
     this.kafkaClient = new ZKKafkaClientService(ZKClients.namespace(zkClient, "/" + runId.getId() + "/kafka"));
-    this.discoveryServiceClient = new ZKDiscoveryService(zkClient);
     Iterables.addAll(this.logHandlers, logHandlers);
   }
 
@@ -95,9 +94,12 @@ public abstract class AbstractTwillController extends AbstractZKServiceControlle
   }
 
   @Override
-  protected void doShutDown() {
+  protected synchronized void doShutDown() {
     if (logCancellable != null) {
       logCancellable.cancel();
+    }
+    if (discoveryServiceClient != null) {
+      discoveryServiceClient.close();
     }
     // Safe to call stop no matter when state the KafkaClientService is in.
     kafkaClient.stopAndWait();
@@ -115,7 +117,10 @@ public abstract class AbstractTwillController extends AbstractZKServiceControlle
   }
 
   @Override
-  public final ServiceDiscovered discoverService(String serviceName) {
+  public final synchronized ServiceDiscovered discoverService(String serviceName) {
+    if (discoveryServiceClient == null) {
+      discoveryServiceClient = new ZKDiscoveryService(zkClient);
+    }
     return discoveryServiceClient.discover(serviceName);
   }
 
@@ -133,8 +138,8 @@ public abstract class AbstractTwillController extends AbstractZKServiceControlle
   }
 
   @Override
-  public final ListenableFuture<Set<String>> restartInstances(Map<String,
-      ? extends Set<Integer>> runnableToInstanceIds) {
+  public final ListenableFuture<Set<String>> restartInstances(
+    Map<String, ? extends Set<Integer>> runnableToInstanceIds) {
     Map<String, String> runnableToStringInstanceIds =
       Maps.transformEntries(runnableToInstanceIds, new Maps.EntryTransformer<String, Set<Integer>, String>() {
         @Override
@@ -165,6 +170,27 @@ public abstract class AbstractTwillController extends AbstractZKServiceControlle
         return runnable;
       }
     });
+  }
+
+  @Override
+  public Future<Map<String, LogEntry.Level>> updateLogLevels(Map<String, LogEntry.Level> logLevels) {
+    return sendMessage(SystemMessages.updateLogLevels(logLevels), logLevels);
+  }
+
+  @Override
+  public Future<Map<String, LogEntry.Level>> updateLogLevels(String runnableName,
+                                                             Map<String, LogEntry.Level> runnableLogLevels) {
+    Preconditions.checkNotNull(runnableName);
+    return sendMessage(SystemMessages.updateLogLevels(runnableName, runnableLogLevels), runnableLogLevels);
+  }
+
+  @Override
+  public Future<String[]> resetLogLevels(String...loggerNames) {
+    return sendMessage(SystemMessages.resetLogLevels(Sets.newHashSet(loggerNames)), loggerNames);
+  }
+  @Override
+  public Future<String[]> resetRunnableLogLevels(String runnableName, String...loggerNames) {
+    return sendMessage(SystemMessages.resetLogLevels(runnableName, Sets.newHashSet(loggerNames)), loggerNames);
   }
 
   private void validateInstanceIds(String runnable, Set<Integer> instanceIds) {
@@ -203,9 +229,11 @@ public abstract class AbstractTwillController extends AbstractZKServiceControlle
     }
 
     @Override
-    public void onReceived(Iterator<FetchedMessage> messages) {
+    public long onReceived(Iterator<FetchedMessage> messages) {
+      long nextOffset = -1L;
       while (messages.hasNext()) {
-        String json = Charsets.UTF_8.decode(messages.next().getPayload()).toString();
+        FetchedMessage message = messages.next();
+        String json = Charsets.UTF_8.decode(message.getPayload()).toString();
         try {
           LogEntry entry = GSON.fromJson(json, LogEntry.class);
           if (entry != null) {
@@ -214,7 +242,9 @@ public abstract class AbstractTwillController extends AbstractZKServiceControlle
         } catch (Exception e) {
           LOG.error("Failed to decode log entry {}", json, e);
         }
+        nextOffset = message.getNextOffset();
       }
+      return nextOffset;
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.junit.runners.Suite;
   InitializeFailTestRun.class,
   LocalFileTestRun.class,
   LogHandlerTestRun.class,
+  LogLevelChangeTestRun.class,
   LogLevelTestRun.class,
   PlacementPolicyTestRun.class,
   ProvisionTimeoutTestRun.class,
@@ -44,5 +45,4 @@ import org.junit.runners.Suite;
   RestartRunnableTestRun.class
 })
 public final class YarnTestSuite extends BaseYarnTest {
-
 }

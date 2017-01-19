@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 
 /**
  * This class helps launching a container.
@@ -82,9 +83,11 @@ public final class TwillContainerLauncher {
    * @param instanceId The Twill instance Id.
    * @param mainClass The main class to run in the container.
    * @param classPath The class path to load classes for the container.
+   * @param logLevelLocation The log level file location for the container to localize.
    * @return instance of {@link TwillContainerController} to control the container run.
    */
-  public TwillContainerController start(RunId runId, int instanceId, Class<?> mainClass, String classPath) {
+  public TwillContainerController start(RunId runId, int instanceId, Class<?> mainClass, String classPath,
+                                        @Nullable Location logLevelLocation) {
     // Clean up zookeeper path in case this is a retry and there are old messages and state there.
     Futures.getUnchecked(ZKOperations.ignoreError(
       ZKOperations.recursiveDelete(zkClient, "/" + runId), KeeperException.NoNodeException.class, null));
@@ -92,13 +95,19 @@ public final class TwillContainerLauncher {
     // Adds all file to be localized to container
     launchContext.addResources(runtimeSpec.getLocalFiles());
 
-    // Optionally localize secure store.
+    // Optionally localize secure store and log level file.
     try {
       if (secureStoreLocation != null && secureStoreLocation.exists()) {
         launchContext.addResources(new DefaultLocalFile(Constants.Files.CREDENTIALS,
                                                         secureStoreLocation.toURI(),
                                                         secureStoreLocation.lastModified(),
                                                         secureStoreLocation.length(), false, null));
+      }
+      if (logLevelLocation != null && logLevelLocation.exists()) {
+        launchContext.addResources(new DefaultLocalFile(Constants.Files.LOG_LEVELS,
+                                                        logLevelLocation.toURI(),
+                                                        logLevelLocation.lastModified(),
+                                                        logLevelLocation.length(), false, null));
       }
     } catch (IOException e) {
       LOG.warn("Failed to launch container with secure store {}.", secureStoreLocation);
@@ -136,14 +145,13 @@ public final class TwillContainerLauncher {
     int memory = Resources.computeMaxHeapSize(containerInfo.getMemoryMB(), reservedMemory, Constants.HEAP_MIN_RATIO);
     commandBuilder.add("-Djava.io.tmpdir=tmp",
                        "-Dyarn.container=$" + EnvKeys.YARN_CONTAINER_ID,
-                       "-Dtwill.runnable=$" + EnvKeys.TWILL_APP_NAME + ".$" + EnvKeys.TWILL_RUNNABLE_NAME,
+                       "-Dtwill.runnable=$" + Constants.TWILL_APP_NAME + ".$" + EnvKeys.TWILL_RUNNABLE_NAME,
                        "-cp", Constants.Files.LAUNCHER_JAR + ":" + classPath,
                        "-Xmx" + memory + "m");
     if (jvmOpts.getExtraOptions() != null) {
       commandBuilder.add(jvmOpts.getExtraOptions());
     }
     commandBuilder.add(TwillLauncher.class.getName(),
-                       Constants.Files.CONTAINER_JAR,
                        mainClass.getName(),
                        Boolean.TRUE.toString());
     List<String> command = commandBuilder.build();

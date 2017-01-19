@@ -21,11 +21,15 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterables;
 import org.apache.hadoop.yarn.api.records.ApplicationResourceUsageReport;
 import org.apache.hadoop.yarn.api.records.NodeReport;
+import org.apache.twill.api.Configs;
 import org.apache.twill.api.TwillController;
 import org.apache.twill.api.TwillRunner;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +52,7 @@ public abstract class BaseYarnTest {
    * A singleton wrapper so that yarn cluster only bring up once across all tests in the YarnTestSuite.
    */
   @ClassRule
-  public static final TwillTester TWILL_TESTER = new TwillTester() {
+  public static final TwillTester TWILL_TESTER = new TwillTester(Configs.Keys.LOCATION_CACHE_DIR, ".cache") {
     private final AtomicInteger instances = new AtomicInteger();
 
     @Override
@@ -66,6 +70,18 @@ public abstract class BaseYarnTest {
     }
   };
 
+  @Rule
+  public final TestName testName = new TestName();
+
+  @Before
+  public void beforeTest() {
+    LOG.info("Before test {}", testName.getMethodName());
+  }
+
+  @After
+  public void afterTest() {
+    LOG.info("After test {}", testName.getMethodName());
+  }
 
   @After
   public final void cleanupTest() {
