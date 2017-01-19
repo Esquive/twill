@@ -60,6 +60,17 @@ public interface TwillRunner {
   TwillPreparer prepare(TwillRunnable runnable, ResourceSpecification resourceSpecification);
 
   /**
+   * Prepares to run the given {@link TwillRunnable} with the given resource specification.
+   * @param runnable The runnable to run through Twill when {@link TwillPreparer#start()} is called.
+   * @param amResourceSpecification The resource specification for the AM runnable.
+   * @param resourceSpecification The resource specification for running the runnable.
+   * @return A {@link TwillPreparer} for setting up runtime options.
+   */
+  TwillPreparer prepare(TwillRunnable runnable,
+                        ResourceSpecification amResourceSpecification,
+                        ResourceSpecification resourceSpecification);
+
+  /**
    * Prepares to run the given {@link TwillApplication} as specified by the application.
    * @param application The application to run through Twill when {@link TwillPreparer#start()} is called.
    * @return A {@link TwillPreparer} for setting up runtime options.

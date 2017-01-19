@@ -17,7 +17,6 @@
  */
 package org.apache.twill.internal;
 
-
 import org.apache.twill.api.EventHandlerSpecification;
 import org.apache.twill.api.Hosts;
 import org.apache.twill.api.Racks;
@@ -25,12 +24,13 @@ import org.apache.twill.api.ResourceSpecification;
 import org.apache.twill.api.RuntimeSpecification;
 import org.apache.twill.api.TwillSpecification;
 
-import javax.annotation.Nullable;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 
 /**
  * Straightforward implementation of {@link org.apache.twill.api.TwillSpecification}.
@@ -113,9 +113,9 @@ public final class DefaultTwillSpecification implements TwillSpecification {
     @Override
     public String toString() {
       return "DefaultOrder{" +
-          "names=" + names +
-          ", type=" + type +
-          '}';
+        "names=" + names +
+        ", type=" + type +
+        '}';
     }
   }
 
@@ -177,11 +177,11 @@ public final class DefaultTwillSpecification implements TwillSpecification {
     @Override
     public String toString() {
       return "DefaultPlacementPolicy{" +
-          "hosts=" + hosts +
-          ", names=" + names +
-          ", type=" + type +
-          ", racks=" + racks +
-          '}';
+        "hosts=" + hosts +
+        ", names=" + names +
+        ", type=" + type +
+        ", racks=" + racks +
+        '}';
     }
   }
 }

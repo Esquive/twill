@@ -142,8 +142,8 @@ public final class Hadoop21YarnAppClient implements YarnAppClient {
 
       Configuration config = yarnClient.getConfig();
       Token<TokenIdentifier> token = ConverterUtils.convertFromYarn(
-          yarnClient.getRMDelegationToken(new Text(YarnUtils.getYarnTokenRenewer(config))),
-          YarnUtils.getRMAddress(config));
+        yarnClient.getRMDelegationToken(new Text(YarnUtils.getYarnTokenRenewer(config))),
+        YarnUtils.getRMAddress(config));
 
       LOG.info("Added RM delegation token {}", token);
       credentials.addToken(token.getService(), token);

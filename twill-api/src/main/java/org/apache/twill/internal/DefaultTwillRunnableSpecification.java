@@ -32,7 +32,6 @@ public final class DefaultTwillRunnableSpecification implements TwillRunnableSpe
   private final String name;
   private final Map<String, String> arguments;
 
-
   public DefaultTwillRunnableSpecification(String className, String name, Map<String, String> arguments) {
     this.className = className;
     this.name = name;

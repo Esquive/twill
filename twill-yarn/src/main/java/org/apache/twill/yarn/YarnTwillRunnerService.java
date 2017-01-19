@@ -287,16 +287,16 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
     final String appName = twillSpec.getName();
 
     return new YarnTwillPreparer(yarnConfig, twillSpec, yarnAppClient, zkClientService.getConnectString(),
-        locationFactory, jvmOptions, LogEntry.Level.INFO, new YarnTwillControllerFactory() {
+                                 locationFactory, jvmOptions, LogEntry.Level.INFO, new YarnTwillControllerFactory() {
       @Override
       public YarnTwillController create(RunId runId, Iterable<LogHandler> logHandlers,
                                         Callable<ProcessController<YarnApplicationReport>> startUp) {
         ZKClient zkClient = ZKClients.namespace(zkClientService, "/" + appName);
         YarnTwillController controller = listenController(new YarnTwillController(appName, runId, zkClient,
-            logHandlers, startUp));
+                                                                                  logHandlers, startUp));
         synchronized (YarnTwillRunnerService.this) {
           Preconditions.checkArgument(!controllers.contains(appName, runId),
-              "Application %s with runId %s is already running.", appName, runId);
+                                      "Application %s with runId %s is already running.", appName, runId);
           controllers.put(appName, runId, controller);
         }
         return controller;
@@ -316,7 +316,7 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
       public Iterator<TwillController> iterator() {
         synchronized (YarnTwillRunnerService.this) {
           return Iterators.transform(ImmutableList.copyOf(controllers.row(applicationName).values()).iterator(),
-              CAST_CONTROLLER);
+                                     CAST_CONTROLLER);
         }
       }
     };
@@ -333,7 +333,7 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
     // Create the root node, so that the namespace root would get created if it is missing
     // If the exception is caused by node exists, then it's ok. Otherwise propagate the exception.
     ZKOperations.ignoreError(zkClientService.create("/", null, CreateMode.PERSISTENT),
-        KeeperException.NodeExistsException.class, null).get();
+                             KeeperException.NodeExistsException.class, null).get();
 
     watchCancellable = watchLiveApps();
     liveInfos = createLiveInfos();
@@ -342,7 +342,7 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
     // Schedule an updater for updating HDFS delegation tokens
     if (UserGroupInformation.isSecurityEnabled() && enableSecureStoreUpdate) {
       long renewalInterval = yarnConfig.getLong(DFSConfigKeys.DFS_NAMENODE_DELEGATION_TOKEN_RENEW_INTERVAL_KEY,
-          DFSConfigKeys.DFS_NAMENODE_DELEGATION_TOKEN_RENEW_INTERVAL_DEFAULT);
+                                                DFSConfigKeys.DFS_NAMENODE_DELEGATION_TOKEN_RENEW_INTERVAL_DEFAULT);
       // Schedule it five minutes before it expires.
       long delay = renewalInterval - TimeUnit.MINUTES.toMillis(5);
       // Just to safeguard. In practice, the value shouldn't be that small, otherwise nothing could work.
@@ -350,7 +350,7 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
         delay = (renewalInterval <= 2) ? 1 : renewalInterval / 2;
       }
       scheduleSecureStoreUpdate(new LocationSecureStoreUpdater(yarnConfig, locationFactory),
-          delay, delay, TimeUnit.MILLISECONDS);
+                                delay, delay, TimeUnit.MILLISECONDS);
     }
   }
 
@@ -374,57 +374,57 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
     final AtomicBoolean cancelled = new AtomicBoolean(false);
     // Watch child changes in the root, which gives all application names.
     final Cancellable cancellable = ZKOperations.watchChildren(zkClientService, "/",
-        new ZKOperations.ChildrenCallback() {
-          @Override
-          public void updated(NodeChildren nodeChildren) {
-            if (cancelled.get()) {
-              return;
-            }
+                                                               new ZKOperations.ChildrenCallback() {
+      @Override
+      public void updated(NodeChildren nodeChildren) {
+        if (cancelled.get()) {
+          return;
+        }
 
-            Set<String> apps = ImmutableSet.copyOf(nodeChildren.getChildren());
+        Set<String> apps = ImmutableSet.copyOf(nodeChildren.getChildren());
 
-            // For each for the application name, watch for ephemeral nodes under /instances.
-            for (final String appName : apps) {
-              if (watched.containsKey(appName)) {
-                continue;
-              }
-
-              final String instancePath = String.format("/%s/instances", appName);
-              watched.put(appName,
-                  ZKOperations.watchChildren(zkClientService, instancePath, new ZKOperations.ChildrenCallback() {
-                    @Override
-                    public void updated(NodeChildren nodeChildren) {
-                      if (cancelled.get()) {
-                        return;
-                      }
-                      if (nodeChildren.getChildren().isEmpty()) {     // No more child, means no live instances
-                        Cancellable removed = watched.remove(appName);
-                        if (removed != null) {
-                          removed.cancel();
-                        }
-                        return;
-                      }
-                      synchronized (YarnTwillRunnerService.this) {
-                        // For each of the children, which the node name is the runId,
-                        // fetch the application Id and construct TwillController.
-                        for (final RunId runId : Iterables.transform(nodeChildren.getChildren(), STRING_TO_RUN_ID)) {
-                          if (controllers.contains(appName, runId)) {
-                            continue;
-                          }
-                          updateController(appName, runId, cancelled);
-                        }
-                      }
-                    }
-                  }));
-            }
-
-            // Remove app watches for apps that are gone. Removal of controller from controllers table is done
-            // in the state listener attached to the twill controller.
-            for (String removeApp : Sets.difference(watched.keySet(), apps)) {
-              watched.remove(removeApp).cancel();
-            }
+        // For each for the application name, watch for ephemeral nodes under /instances.
+        for (final String appName : apps) {
+          if (watched.containsKey(appName)) {
+            continue;
           }
-        });
+
+          final String instancePath = String.format("/%s/instances", appName);
+          watched.put(appName,
+                  ZKOperations.watchChildren(zkClientService, instancePath, new ZKOperations.ChildrenCallback() {
+            @Override
+            public void updated(NodeChildren nodeChildren) {
+              if (cancelled.get()) {
+                return;
+              }
+              if (nodeChildren.getChildren().isEmpty()) {     // No more child, means no live instances
+                Cancellable removed = watched.remove(appName);
+                if (removed != null) {
+                  removed.cancel();
+                }
+                return;
+              }
+              synchronized (YarnTwillRunnerService.this) {
+                // For each of the children, which the node name is the runId,
+                // fetch the application Id and construct TwillController.
+                for (final RunId runId : Iterables.transform(nodeChildren.getChildren(), STRING_TO_RUN_ID)) {
+                  if (controllers.contains(appName, runId)) {
+                    continue;
+                  }
+                  updateController(appName, runId, cancelled);
+                }
+              }
+            }
+          }));
+        }
+
+        // Remove app watches for apps that are gone. Removal of controller from controllers table is done
+        // in the state listener attached to the twill controller.
+        for (String removeApp : Sets.difference(watched.keySet(), apps)) {
+          watched.remove(removeApp).cancel();
+        }
+      }
+    });
     return new Cancellable() {
       @Override
       public void cancel() {
@@ -456,10 +456,10 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
 
   private ZKClientService getZKClientService(String zkConnect) {
     return ZKClientServices.delegate(
-        ZKClients.reWatchOnExpire(
-            ZKClients.retryOnFailure(ZKClientService.Builder.of(zkConnect)
-                .setSessionTimeout(ZK_TIMEOUT)
-                .build(), RetryStrategies.exponentialDelay(100, 2000, TimeUnit.MILLISECONDS))));
+      ZKClients.reWatchOnExpire(
+        ZKClients.retryOnFailure(ZKClientService.Builder.of(zkConnect)
+                                   .setSessionTimeout(ZK_TIMEOUT)
+                                   .build(), RetryStrategies.exponentialDelay(100, 2000, TimeUnit.MILLISECONDS))));
   }
 
   private Iterable<LiveInfo> createLiveInfos() {
@@ -472,22 +472,22 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
           controllerMap = ImmutableTable.copyOf(controllers).rowMap();
         }
         return Iterators.transform(controllerMap.entrySet().iterator(),
-            new Function<Map.Entry<String, Map<RunId, YarnTwillController>>, LiveInfo>() {
+                                   new Function<Map.Entry<String, Map<RunId, YarnTwillController>>, LiveInfo>() {
+          @Override
+          public LiveInfo apply(final Map.Entry<String, Map<RunId, YarnTwillController>> entry) {
+            return new LiveInfo() {
               @Override
-              public LiveInfo apply(final Map.Entry<String, Map<RunId, YarnTwillController>> entry) {
-                return new LiveInfo() {
-                  @Override
-                  public String getApplicationName() {
-                    return entry.getKey();
-                  }
-
-                  @Override
-                  public Iterable<TwillController> getControllers() {
-                    return Iterables.transform(entry.getValue().values(), CAST_CONTROLLER);
-                  }
-                };
+              public String getApplicationName() {
+                return entry.getKey();
               }
-            });
+
+              @Override
+              public Iterable<TwillController> getControllers() {
+                return Iterables.transform(entry.getValue().values(), CAST_CONTROLLER);
+              }
+            };
+          }
+        });
       }
     };
   }
@@ -511,8 +511,8 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
           if (!controllers.contains(appName, runId)) {
             ZKClient zkClient = ZKClients.namespace(zkClientService, "/" + appName);
             YarnTwillController controller = listenController(
-                new YarnTwillController(appName, runId, zkClient,
-                    Callables.returning(yarnAppClient.createProcessController(appId))));
+              new YarnTwillController(appName, runId, zkClient,
+                                      Callables.returning(yarnAppClient.createProcessController(appId))));
             controllers.put(appName, runId, controller);
             controller.start();
           }
@@ -529,7 +529,6 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
 
   /**
    * Decodes application ID stored inside the node data.
-   *
    * @param nodeData The node data to decode from. If it is {@code null}, this method would return {@code null}.
    * @return The ApplicationId or {@code null} if failed to decode.
    */
@@ -593,7 +592,7 @@ public final class YarnTwillRunnerService implements TwillRunnerService {
 
   private void updateCredentials(String application, RunId runId, Credentials updates) throws IOException {
     Location credentialsLocation = locationFactory.create(String.format("/%s/%s/%s", application, runId.getId(),
-        Constants.Files.CREDENTIALS));
+                                                                        Constants.Files.CREDENTIALS));
     // Try to read the old credentials.
     Credentials credentials = new Credentials();
     if (credentialsLocation.exists()) {

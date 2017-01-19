@@ -39,7 +39,4 @@ public interface TwillRunnerService extends TwillRunner {
    */
   void stop();
 
-  TwillPreparer prepare(TwillRunnable runnable,
-                        ResourceSpecification amResourceSpecification,
-                        ResourceSpecification resourceSpecification);
 }
